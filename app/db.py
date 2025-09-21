@@ -1,0 +1,133 @@
+"""DuckDB-backed DB manager used by the FastAPI app.
+
+This file is written as a single atomic unit to avoid duplication issues.
+"""
+import os
+import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Optional
+
+import duckdb
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+DB_PATH = os.getenv("EXAMPLE_FASTAPI_DB", "data.db")
+MAX_WORKERS = int(os.getenv("EXAMPLE_FASTAPI_MAX_WORKERS", "100"))
+
+
+class DBManager:
+    def __init__(self, db_path: str = DB_PATH, max_workers: int = MAX_WORKERS):
+        self.db_path = db_path
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._local = threading.local()
+
+        # initialize DB schema (safe to call multiple times)
+        conn = duckdb.connect(self.db_path)
+        conn.execute("CREATE SEQUENCE IF NOT EXISTS items_seq START 1")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS items (
+                id INTEGER DEFAULT nextval('items_seq') PRIMARY KEY,
+                name TEXT NOT NULL,
+                value TEXT
+            )
+            """
+        )
+        conn.close()
+
+    def _get_conn(self) -> duckdb.DuckDBPyConnection:
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = duckdb.connect(self.db_path)
+            self._local.conn = conn
+        return conn
+
+    async def run(self, fn, *args, **kwargs):
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, lambda: fn(*args, **kwargs))
+
+    # CRUD
+    def _fetch_all_items_sync(self) -> List[Dict[str, Any]]:
+        conn = self._get_conn()
+        cur = conn.execute("SELECT id, name, value FROM items ORDER BY id")
+        rows = cur.fetchall()
+        return [{"id": int(r[0]), "name": r[1], "value": r[2]} for r in rows]
+
+    async def fetch_all_items(self) -> List[Dict[str, Any]]:
+        return await self.run(self._fetch_all_items_sync)
+
+    def _fetch_item_sync(self, item_id: int) -> Optional[Dict[str, Any]]:
+        conn = self._get_conn()
+        cur = conn.execute("SELECT id, name, value FROM items WHERE id = ?", (item_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {"id": int(row[0]), "name": row[1], "value": row[2]}
+
+    async def fetch_item(self, item_id: int) -> Optional[Dict[str, Any]]:
+        return await self.run(self._fetch_item_sync, item_id)
+
+    def _create_item_sync(self, name: str, value: Optional[str]) -> Dict[str, Any]:
+        conn = self._get_conn()
+        seq_row = conn.execute("SELECT nextval('items_seq')").fetchone()
+        item_id = int(seq_row[0])
+        conn.execute("INSERT INTO items (id, name, value) VALUES (?, ?, ?)", (item_id, name, value))
+        return {"id": item_id, "name": name, "value": value}
+
+    async def create_item(self, name: str, value: Optional[str]) -> Dict[str, Any]:
+        return await self.run(self._create_item_sync, name, value)
+
+    def _update_item_sync(self, item_id: int, name: str, value: Optional[str]) -> Optional[Dict[str, Any]]:
+        conn = self._get_conn()
+        conn.execute("UPDATE items SET name = ?, value = ? WHERE id = ?", (name, value, item_id))
+        cur = conn.execute("SELECT changes()")
+        changed = int(cur.fetchone()[0])
+        if changed == 0:
+            return None
+        return {"id": item_id, "name": name, "value": value}
+
+    async def update_item(self, item_id: int, name: str, value: Optional[str]) -> Optional[Dict[str, Any]]:
+        return await self.run(self._update_item_sync, item_id, name, value)
+
+    def _delete_item_sync(self, item_id: int) -> bool:
+        conn = self._get_conn()
+        conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        cur = conn.execute("SELECT changes()")
+        changed = int(cur.fetchone()[0])
+        return changed > 0
+
+    async def delete_item(self, item_id: int) -> bool:
+        return await self.run(self._delete_item_sync, item_id)
+
+    def check_connection(self, retries: int = 3, delay: float = 0.1) -> bool:
+        """Run a quick sync connectivity check with retries.
+
+        This method is synchronous and intended to be executed inside the
+        DBManager's threadpool (via `await db.run(db.check_connection, ...)`).
+        """
+        import time
+
+        for attempt in range(retries):
+            try:
+                conn = self._get_conn()
+                cur = conn.execute("SELECT 1")
+                row = cur.fetchone()
+                if row and row[0] == 1:
+                    return True
+            except Exception:
+                # swallow and retry
+                pass
+            if attempt + 1 < retries:
+                time.sleep(delay)
+        return False
+
+    def close(self):
+        self._executor.shutdown(wait=True)
+
+
+# singleton
+db = DBManager()
