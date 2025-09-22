@@ -90,7 +90,7 @@ async def create_item(request: Request):
         data = await request.json()
         return await db_manager.create_item(**data)
     except Exception as e:
-        logging.error(f"DB error in create_item: {e}")
+        logging.error("DB error in create_item: %s", e)
         raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
@@ -109,7 +109,7 @@ async def update_item(item_id: int, request: Request):
             raise HTTPException(status_code=404, detail="Item not found")
         return updated
     except Exception as e:
-        logging.error(f"DB error in update_item: {e}")
+        logging.error("DB error in update_item: %s", e)
         raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
@@ -128,5 +128,5 @@ async def delete_item(item_id: int):
             raise HTTPException(status_code=404, detail="Item not found")
         return None
     except Exception as e:
-        logging.error(f"DB error in delete_item: {e}")
+        logging.error("DB error in delete_item: %s", e)
         raise HTTPException(status_code=500, detail={"error": str(e)}) from e
