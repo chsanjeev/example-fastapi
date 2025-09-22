@@ -12,12 +12,16 @@ This module defines the FastAPI API routes for item operations.
     - db: Database access layer for CRUD operations.
 """
 
+import logging
 import os
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from .schemas import Item, ItemCreate, ItemUpdate
+from .schemas import Item
+
+logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s %(message)s", filename="app_error.log", filemode="a")
+
 
 DB_BACKEND = os.getenv("DB_BACKEND", "duckdb")
 if DB_BACKEND == "snowflake":
@@ -41,7 +45,11 @@ async def list_items():
         - Item response model
         - Database access via db.db.fetch_all_items()
     """
-    return await db_manager.fetch_all_items()
+    try:
+        return await db_manager.fetch_all_items()
+    except Exception as e:
+        logging.error(f"DB error in list_items: {e}")
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
 @router.get("/{item_id}", response_model=Item)
@@ -52,14 +60,21 @@ async def get_item(item_id: int):
     Routes:
         GET /{item_id}: Retrieve an item by its ID. Returns the item if found, otherwise raises a 404 HTTPException.
     """
-    item = await db_manager.fetch_item(item_id)
-    if item is None:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return item
+    try:
+        item = await db_manager.fetch_item(item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+        return item
+    except Exception as e:
+        logging.error(f"DB error in get_item: {e}")
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e
+
+
+from fastapi import Request
 
 
 @router.post("/", response_model=Item, status_code=201)
-async def create_item(payload: ItemCreate):
+async def create_item(request: Request):
     """
     This module defines API routes for item management using FastAPI.
 
@@ -71,21 +86,31 @@ async def create_item(payload: ItemCreate):
         - Item: Response model representing an item.
         - ItemCreate: Request model for item creation.
     """
-    return await db_manager.create_item(payload.name, payload.value)
+    try:
+        data = await request.json()
+        return await db_manager.create_item(**data)
+    except Exception as e:
+        logging.error(f"DB error in create_item: {e}")
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
 @router.put("/{item_id}", response_model=Item)
-async def update_item(item_id: int, payload: ItemUpdate):
+async def update_item(item_id: int, request: Request):
     """
     This module defines the API routes for item operations.
 
     Routes:
         PUT /{item_id}: Updates an existing item with the provided data.
     """
-    updated = await db_manager.update_item(item_id, payload.name, payload.value)
-    if updated is None:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return updated
+    try:
+        data = await request.json()
+        updated = await db_manager.update_item(item_id, **data)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+        return updated
+    except Exception as e:
+        logging.error(f"DB error in update_item: {e}")
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
 @router.delete("/{item_id}", status_code=204)
@@ -97,7 +122,11 @@ async def delete_item(item_id: int):
         DELETE /{item_id}: Deletes an item by its ID. Returns 204 No Content on success,
         or 404 Not Found if the item does not exist.
     """
-    deleted = await db_manager.delete_item(item_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Item not found")
-    return None
+    try:
+        deleted = await db_manager.delete_item(item_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Item not found")
+        return None
+    except Exception as e:
+        logging.error(f"DB error in delete_item: {e}")
+        raise HTTPException(status_code=500, detail={"error": str(e)}) from e

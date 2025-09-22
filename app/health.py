@@ -18,9 +18,13 @@ Imports:
 """
 
 import asyncio
+import logging
 import os
 
 from fastapi import APIRouter, Response
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[logging.FileHandler("app_error.log", mode="a"), logging.StreamHandler()])
+
 
 DB_BACKEND = os.getenv("DB_BACKEND", "duckdb")
 if DB_BACKEND == "snowflake":

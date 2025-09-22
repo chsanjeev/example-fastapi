@@ -32,6 +32,9 @@ from typing import Any, Dict, List, Optional
 
 import snowflake.connector
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[logging.FileHandler("app_error.log", mode="a"), logging.StreamHandler()])
+logger = logging.getLogger(__name__)
+
 LOGIN_TYPE = os.getenv("LOGIN_TYPE", "password")
 SNOWFLAKE_PRIVATE_KEY_PATH = os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH")
 SNOWFLAKE_OAUTH_TOKEN = os.getenv("SNOWFLAKE_OAUTH_TOKEN")
@@ -157,31 +160,42 @@ class DBManager:
     async def fetch_item(self, item_id: int) -> Optional[Dict[str, Any]]:
         return await self.run(self._fetch_item_sync, item_id)
 
-    def _create_item_sync(self, name: str, value: Optional[str]) -> Dict[str, Any]:
+    def _create_item_sync(self, **fields) -> Dict[str, Any]:
         conn = self._get_conn()
         cur = conn.cursor()
-        cur.execute("INSERT INTO items (name, value) VALUES (%s, %s)", (name, value))
+        columns = list(fields.keys())
+        values = list(fields.values())
+        placeholders = ", ".join(["%s" for _ in columns])
+        sql = f"INSERT INTO items ({', '.join(columns)}) VALUES ({placeholders})"
+        cur.execute(sql, values)
         cur.execute("SELECT LAST_INSERT_ID()")
         item_id = int(cur.fetchone()[0])
         cur.close()
-        return {"id": item_id, "name": name, "value": value}
+        result = {"id": item_id}
+        result.update(fields)
+        return result
 
-    async def create_item(self, name: str, value: Optional[str]) -> Dict[str, Any]:
-        return await self.run(self._create_item_sync, name, value)
+    async def create_item(self, **fields) -> Dict[str, Any]:
+        return await self.run(self._create_item_sync, **fields)
 
-    def _update_item_sync(self, item_id: int, name: str, value: Optional[str]) -> Optional[Dict[str, Any]]:
+    def _update_item_sync(self, item_id: int, **fields) -> Optional[Dict[str, Any]]:
         conn = self._get_conn()
         cur = conn.cursor()
-        cur.execute("UPDATE items SET name = %s, value = %s WHERE id = %s", (name, value, item_id))
+        set_clause = ", ".join([f"{k} = %s" for k in fields.keys()])
+        values = list(fields.values()) + [item_id]
+        sql = f"UPDATE items SET {set_clause} WHERE id = %s"
+        cur.execute(sql, values)
         cur.execute("SELECT ROW_COUNT()")
         changed = int(cur.fetchone()[0])
         cur.close()
         if changed == 0:
             return None
-        return {"id": item_id, "name": name, "value": value}
+        result = {"id": item_id}
+        result.update(fields)
+        return result
 
-    async def update_item(self, item_id: int, name: str, value: Optional[str]) -> Optional[Dict[str, Any]]:
-        return await self.run(self._update_item_sync, item_id, name, value)
+    async def update_item(self, item_id: int, **fields) -> Optional[Dict[str, Any]]:
+        return await self.run(self._update_item_sync, item_id, **fields)
 
     def _delete_item_sync(self, item_id: int) -> bool:
         conn = self._get_conn()

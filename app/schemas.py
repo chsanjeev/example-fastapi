@@ -1,43 +1,12 @@
-from typing import Optional
+"""
+This module defines schema types for the FastAPI application.
 
-from pydantic import BaseModel
+Attributes:
+    Item (Dict[str, Any]): A dynamic response model representing an item as a dictionary
+        with string keys and values of any type.
+"""
 
+from typing import Any, Dict
 
-class ItemCreate(BaseModel):
-    """
-    Schema for creating an Item.
-
-    Attributes:
-        name (str): The name of the item.
-        value (Optional[str]): An optional value associated with the item.
-    """
-
-    name: str
-    value: Optional[str] = None
-
-
-class Item(ItemCreate):
-    """
-    Represents an item with a unique identifier.
-
-    Inherits from:
-        ItemCreate: Base schema for item creation.
-
-    Attributes:
-        id (int): Unique identifier for the item.
-    """
-
-    id: int
-
-
-class ItemUpdate(BaseModel):
-    """
-    Schema for updating an item.
-
-    Attributes:
-        name (str): The name of the item.
-        value (Optional[str]): The value associated with the item. Defaults to None.
-    """
-
-    name: str
-    value: Optional[str] = None
+# Dynamic response model for items
+Item = Dict[str, Any]

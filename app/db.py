@@ -19,6 +19,9 @@ from typing import Any, Dict, List, Optional
 
 import duckdb  # type: ignore
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", handlers=[logging.FileHandler("app_error.log", mode="a"), logging.StreamHandler()])
+
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -133,27 +136,38 @@ class DBManager:
     async def fetch_item(self, item_id: int) -> Optional[Dict[str, Any]]:
         return await self.run(self._fetch_item_sync, item_id)
 
-    def _create_item_sync(self, name: str, value: Optional[str]) -> Dict[str, Any]:
+    def _create_item_sync(self, **fields) -> Dict[str, Any]:
         conn = self._get_conn()
         seq_row = conn.execute("SELECT nextval('items_seq')").fetchone()
         item_id = int(seq_row[0])
-        conn.execute("INSERT INTO items (id, name, value) VALUES (?, ?, ?)", (item_id, name, value))
-        return {"id": item_id, "name": name, "value": value}
+        columns = ["id"] + list(fields.keys())
+        values = [item_id] + list(fields.values())
+        placeholders = ", ".join(["?" for _ in columns])
+        sql = f"INSERT INTO items ({', '.join(columns)}) VALUES ({placeholders})"
+        conn.execute(sql, values)
+        result = {"id": item_id}
+        result.update(fields)
+        return result
 
-    async def create_item(self, name: str, value: Optional[str]) -> Dict[str, Any]:
-        return await self.run(self._create_item_sync, name, value)
+    async def create_item(self, **fields) -> Dict[str, Any]:
+        return await self.run(self._create_item_sync, **fields)
 
-    def _update_item_sync(self, item_id: int, name: str, value: Optional[str]) -> Optional[Dict[str, Any]]:
+    def _update_item_sync(self, item_id: int, **fields) -> Optional[Dict[str, Any]]:
         conn = self._get_conn()
-        conn.execute("UPDATE items SET name = ?, value = ? WHERE id = ?", (name, value, item_id))
+        set_clause = ", ".join([f"{k} = ?" for k in fields.keys()])
+        values = list(fields.values()) + [item_id]
+        sql = f"UPDATE items SET {set_clause} WHERE id = ?"
+        conn.execute(sql, values)
         cur = conn.execute("SELECT changes()")
         changed = int(cur.fetchone()[0])
         if changed == 0:
             return None
-        return {"id": item_id, "name": name, "value": value}
+        result = {"id": item_id}
+        result.update(fields)
+        return result
 
-    async def update_item(self, item_id: int, name: str, value: Optional[str]) -> Optional[Dict[str, Any]]:
-        return await self.run(self._update_item_sync, item_id, name, value)
+    async def update_item(self, item_id: int, **fields) -> Optional[Dict[str, Any]]:
+        return await self.run(self._update_item_sync, item_id, **fields)
 
     def _delete_item_sync(self, item_id: int) -> bool:
         """
