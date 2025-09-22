@@ -1,4 +1,12 @@
 """DuckDB-backed DB manager used by the FastAPI app.
+DuckDB-backed DB manager used by the FastAPI app.
+
+
+
+Attributes:
+    DB_PATH (str): Path to the DuckDB database file, configurable via the EXAMPLE_FASTAPI_DB environment variable.
+    MAX_WORKERS (int): Maximum number of worker threads for concurrent execution, configurable via the EXAMPLE_FASTAPI_MAX_WORKERS environment variable.
+    db (DBManager): Singleton instance of DBManager for use throughout the application.
 
 This file is written as a single atomic unit to avoid duplication issues.
 """
@@ -18,7 +26,32 @@ MAX_WORKERS = int(os.getenv("EXAMPLE_FASTAPI_MAX_WORKERS", "100"))
 
 
 class DBManager:
+    """
+    This module provides the DBManager class for managing DuckDB database operations in a thread-safe and asynchronous manner.
+    It initializes the database schema, manages connections using thread-local storage, and exposes CRUD operations for the 'items' table.
+    Database operations are executed in a thread pool to avoid blocking the main event loop in asynchronous applications.
+
+    Classes:
+        DBManager: Handles connection management, schema initialization, and CRUD operations for the 'items' table.
+    """
+
     def __init__(self, db_path: str = DB_PATH, max_workers: int = MAX_WORKERS):
+        """
+        Module for database initialization and connection management using DuckDB.
+
+        This module provides a class for handling database connections, schema initialization,
+        and thread-safe execution using a thread pool. The database schema includes a sequence
+        and a table for storing items with unique IDs, names, and values.
+
+            Initialize the database connection and schema.
+
+            Args:
+                db_path (str): Path to the DuckDB database file. Defaults to DB_PATH.
+                max_workers (int): Maximum number of worker threads for concurrent execution. Defaults to MAX_WORKERS.
+
+            Initializes a thread pool executor and thread-local storage for database connections.
+            Ensures the database schema is created, including a sequence for item IDs and an 'items' table.
+        """
         self.db_path = db_path
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
         self._local = threading.local()
@@ -38,6 +71,18 @@ class DBManager:
         conn.close()
 
     def _get_conn(self) -> duckdb.DuckDBPyConnection:
+        """
+        This module provides database connection management utilities for DuckDB.
+
+        Functions:
+            _get_conn: Retrieves a thread-local DuckDB connection, creating one if it does not exist.
+
+        Retrieves a thread-local DuckDB connection. If a connection does not already exist for the current thread,
+        a new one is created using the specified database path and stored in the thread-local storage.
+
+        Returns:
+            duckdb.DuckDBPyConnection: The DuckDB connection associated with the current thread.
+        """
         conn = getattr(self._local, "conn", None)
         if conn is None:
             conn = duckdb.connect(self.db_path)
@@ -45,6 +90,12 @@ class DBManager:
         return conn
 
     async def run(self, fn, *args, **kwargs):
+        """
+        This module provides asynchronous database utilities.
+
+        Functions:
+            run(fn, *args, **kwargs): Executes a synchronous function asynchronously using an executor.
+        """
         import asyncio
 
         loop = asyncio.get_running_loop()
@@ -52,6 +103,16 @@ class DBManager:
 
     # CRUD
     def _fetch_all_items_sync(self) -> List[Dict[str, Any]]:
+        """
+        Module for database operations related to item retrieval.
+
+        This module provides synchronous methods for fetching item records from the database.
+        Retrieve all items from the database in a synchronous manner.
+
+        Returns:
+            List[Dict[str, Any]]: A list of dictionaries, each representing an item with
+                'id' (int), 'name' (str), and 'value' (Any) fields.
+        """
         conn = self._get_conn()
         cur = conn.execute("SELECT id, name, value FROM items ORDER BY id")
         rows = cur.fetchall()
@@ -94,6 +155,10 @@ class DBManager:
         return await self.run(self._update_item_sync, item_id, name, value)
 
     def _delete_item_sync(self, item_id: int) -> bool:
+        """
+        This module provides database utility functions for managing items in the application.
+        It includes synchronous and asynchronous operations for CRUD actions on the items table.
+        """
         conn = self._get_conn()
         conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
         cur = conn.execute("SELECT changes()")
