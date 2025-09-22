@@ -1,14 +1,36 @@
-from fastapi import FastAPI, Request
-from .routes import router as items_router
-from . import db
-from .health import router as health_router
+"""
+This module sets up the FastAPI application for the Example FastAPI + DuckDB project.
+
+Features:
+- Initializes the FastAPI app with a custom title.
+- Adds middleware to generate and log a unique request ID for each HTTP request, enhancing observability.
+- Logs request method, path, status code, duration, and request ID for each request.
+- Includes modular routers for item management and health checks.
+- Provides an entry point for running the application with Uvicorn.
+
+Designed for modularity, observability, and maintainability in API development.
+"""
 import time
 import logging
+from fastapi import FastAPI, Request
+from .routes import router as items_router
+from .health import router as health_router
+
 
 logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
+    """
+    This module defines the FastAPI application setup for the Example FastAPI + DuckDB project.
+
+    It provides the `create_app` function, which initializes a FastAPI app with:
+    - Middleware for generating and logging a unique request ID for each HTTP request.
+    - Logging of request method, path, status code, duration, and request ID.
+    - Inclusion of routers for item management and health checks.
+
+    The application is designed to facilitate observability and modular routing.
+    """
     app = FastAPI(title="Example FastAPI + DuckDB")
 
     # request id + simple request logging middleware
@@ -29,7 +51,7 @@ def create_app() -> FastAPI:
         response.headers["X-Request-ID"] = req_id
         logger.info("%s %s %s %.2fms request_id=%s", request.method, request.url.path, response.status_code, duration, req_id)
         return response
-
+    print('me')
     app.include_router(items_router)
     app.include_router(health_router)
     return app
