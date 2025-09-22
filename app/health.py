@@ -22,7 +22,11 @@ import os
 
 from fastapi import APIRouter, Response
 
-from . import db
+DB_BACKEND = os.getenv("DB_BACKEND", "duckdb")
+if DB_BACKEND == "snowflake":
+    from .db_snowflake import db as db_manager
+else:
+    from .db import db as db_manager  # type: ignore
 
 router = APIRouter()
 
@@ -57,7 +61,7 @@ async def ready(response: Response):
     # Execute the synchronous check in the DBManager's threadpool and bound
     # the operation with an asyncio timeout to avoid long blocking.
     try:
-        ok = await asyncio.wait_for(db.db.run(db.db.check_connection, retries, delay), timeout=timeout)
+        ok = await asyncio.wait_for(db_manager.run(db_manager.check_connection, retries, delay), timeout=timeout)
     except asyncio.TimeoutError:
         ok = False
 

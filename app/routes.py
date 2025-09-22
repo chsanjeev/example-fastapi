@@ -12,12 +12,18 @@ This module defines the FastAPI API routes for item operations.
     - db: Database access layer for CRUD operations.
 """
 
+import os
 from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from . import db
 from .schemas import Item, ItemCreate, ItemUpdate
+
+DB_BACKEND = os.getenv("DB_BACKEND", "duckdb")
+if DB_BACKEND == "snowflake":
+    from .db_snowflake import db as db_manager
+else:
+    from .db import db as db_manager  # type: ignore
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -35,7 +41,7 @@ async def list_items():
         - Item response model
         - Database access via db.db.fetch_all_items()
     """
-    return await db.db.fetch_all_items()
+    return await db_manager.fetch_all_items()
 
 
 @router.get("/{item_id}", response_model=Item)
@@ -46,7 +52,7 @@ async def get_item(item_id: int):
     Routes:
         GET /{item_id}: Retrieve an item by its ID. Returns the item if found, otherwise raises a 404 HTTPException.
     """
-    item = await db.db.fetch_item(item_id)
+    item = await db_manager.fetch_item(item_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
@@ -65,7 +71,7 @@ async def create_item(payload: ItemCreate):
         - Item: Response model representing an item.
         - ItemCreate: Request model for item creation.
     """
-    return await db.db.create_item(payload.name, payload.value)
+    return await db_manager.create_item(payload.name, payload.value)
 
 
 @router.put("/{item_id}", response_model=Item)
@@ -76,7 +82,7 @@ async def update_item(item_id: int, payload: ItemUpdate):
     Routes:
         PUT /{item_id}: Updates an existing item with the provided data.
     """
-    updated = await db.db.update_item(item_id, payload.name, payload.value)
+    updated = await db_manager.update_item(item_id, payload.name, payload.value)
     if updated is None:
         raise HTTPException(status_code=404, detail="Item not found")
     return updated
@@ -91,7 +97,7 @@ async def delete_item(item_id: int):
         DELETE /{item_id}: Deletes an item by its ID. Returns 204 No Content on success,
         or 404 Not Found if the item does not exist.
     """
-    deleted = await db.db.delete_item(item_id)
+    deleted = await db_manager.delete_item(item_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Item not found")
     return None

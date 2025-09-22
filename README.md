@@ -24,6 +24,21 @@ Environment variables
 ---------------------
 
 - EXAMPLE_FASTAPI_DB: path to the duckdb file (default: data.db)
+
+Database backend selection:
+- DB_BACKEND: Select database backend: 'duckdb' (default) or 'snowflake'
+
+Snowflake database environment variables (if using Snowflake backend):
+
+- SNOWFLAKE_USER: Snowflake username
+- SNOWFLAKE_PASSWORD: Password (for password login)
+- SNOWFLAKE_ACCOUNT: Snowflake account identifier
+- SNOWFLAKE_DATABASE: Database name
+- SNOWFLAKE_SCHEMA: Schema name (default: PUBLIC)
+- SNOWFLAKE_WAREHOUSE: Warehouse name
+- SNOWFLAKE_PRIVATE_KEY_PATH: Path to private key file (for keypair login)
+- SNOWFLAKE_OAUTH_TOKEN: OAuth2.0 token (for oauth login)
+- LOGIN_TYPE: Select login type: 'password' (default), 'keypair', or 'oauth'
 - EXAMPLE_FASTAPI_MAX_WORKERS: number of threads for DB executor (default: 100)
  - EXAMPLE_FASTAPI_READY_RETRIES: number of attempts for readiness check (default: 3)
  - EXAMPLE_FASTAPI_READY_DELAY: seconds to wait between readiness attempts (default: 0.1)

@@ -9,3 +9,4 @@ autopep8>=2.3.2
 
 black>=24.3.0
 isort>=5.12.0
+snowflake-connector-python

@@ -12,12 +12,16 @@ Designed for modularity, observability, and maintainability in API development.
 """
 
 import logging
+import os
 import time
 
 from fastapi import FastAPI, Request
 
 from .health import router as health_router
 from .routes import router as items_router
+
+# Select DB backend
+DB_BACKEND = os.getenv("DB_BACKEND", "duckdb")
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +58,7 @@ def create_app() -> FastAPI:
         logger.info("%s %s %s %.2fms request_id=%s", request.method, request.url.path, response.status_code, duration, req_id)
         return response
 
-    print("me")
+    print(f"Using DB backend: {DB_BACKEND}")
     app.include_router(items_router)
     app.include_router(health_router)
     return app
