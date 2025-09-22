@@ -1,0 +1,25 @@
+{
+    "flake8.args": [
+        "--config",".flake8"
+    ],
+    "editor.formatOnSave": true,
+    "black-formatter.args": [
+        "--config","pyproject.toml"
+    ],
+    "autopep8.args": [
+        "--max-line-length",
+        "250",
+    ],
+    "isort.args": [
+        "--settings-path", "pyproject.toml"
+    ],
+    "flake8.enabled": true,
+    "pylint.args": [
+        "--rcfile=pyproject.toml"
+    ],
+    "eslint.lintTask.enable": true,
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+    }
+}

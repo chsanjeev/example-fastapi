@@ -1,4 +1,3 @@
-
 """
 This module provides health and readiness endpoints for the FastAPI application.
 
@@ -18,9 +17,10 @@ Imports:
 - db: Local database utility module.
 """
 
-from fastapi import APIRouter, Response
-import os
 import asyncio
+import os
+
+from fastapi import APIRouter, Response
 
 from . import db
 
