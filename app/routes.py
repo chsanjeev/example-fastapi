@@ -1,4 +1,4 @@
-""" 
+"""
 This module defines the FastAPI API routes for item operations.
 
     - GET /items/: Retrieves a list of items from the database.

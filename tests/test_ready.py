@@ -7,7 +7,6 @@ verifying that the service is available and responds with the expected status an
 
 import asyncio
 
-
 from httpx import AsyncClient
 from httpx._transports.asgi import ASGITransport
 

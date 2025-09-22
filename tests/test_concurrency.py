@@ -1,6 +1,7 @@
 import asyncio
+
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 
@@ -10,6 +11,7 @@ async def test_100_concurrent_creates_and_reads(tmp_path):
     """Create 100 items concurrently, then read them concurrently."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
+
         async def create(i):
             resp = await client.post("/items/", json={"name": f"item-{i}", "value": str(i)})
             assert resp.status_code == 201
