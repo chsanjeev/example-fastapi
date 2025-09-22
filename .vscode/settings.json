@@ -22,5 +22,5 @@
     "editor.codeActionsOnSave": {
     "source.organizeImports": "always"
     },
-    "python.analysis.typeCheckingMode": "strict"
+    "python.analysis.typeCheckingMode": "standard"
 }
