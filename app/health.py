@@ -29,6 +29,12 @@ router = APIRouter()
 
 @router.get("/health")
 async def health():
+    """
+    Asynchronously checks the health status of the application.
+
+    Returns:
+        dict: A dictionary containing the health status of the application.
+    """
     return {"status": "ok"}
 
 
