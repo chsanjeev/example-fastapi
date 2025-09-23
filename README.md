@@ -23,7 +23,7 @@ This FastAPI application provides a flexible API for CRUD operations on items, s
 
 ### Requirements
 
-- Python 3.9+
+- Python 3.12+
 - Install dependencies: `pip install -r requirements.txt`
 
 ### Quick Start

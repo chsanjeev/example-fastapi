@@ -16,9 +16,10 @@ import logging
 import os
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from .schemas import Item
+from .table_config import table_config
 
 logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(levelname)s %(message)s", filename="app_error.log", filemode="a")
 
@@ -29,11 +30,13 @@ if DB_BACKEND == "snowflake":
 else:
     from .db import db as db_manager  # type: ignore
 
-router = APIRouter(prefix="/items", tags=["items"])
+# from .db import db as db_manager  # type: ignore
+
+router = APIRouter(prefix="/api/{table_name}", tags=["dynamic-table"])
 
 
 @router.get("/", response_model=List[Item])
-async def list_items():
+async def list_items(table_name: str, order_by: str = "id"):
     """
     This module defines the API routes for item operations.
 
@@ -46,14 +49,22 @@ async def list_items():
         - Database access via db.db.fetch_all_items()
     """
     try:
-        return await db_manager.fetch_all_items()
+        config = table_config.get(table_name, {})
+        order_by = config.get("order_by", order_by)
+        where = config.get("where", "")
+        # If where clause is set, add to SQL (assumes db_manager supports it)
+        if where:
+            # You may need to update db_manager to accept a where clause
+            return await db_manager.fetch_all_items_with_where(table_name, None, order_by, where)
+        else:
+            return await db_manager.fetch_all_items(table_name, None, order_by)
     except Exception as e:
-        logging.error(f"DB error in list_items: {e}")
+        logging.error("DB error in list_items: %s", e)
         raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
 @router.get("/{item_id}", response_model=Item)
-async def get_item(item_id: int):
+async def get_item(table_name: str, item_id: int, order_by: str = "id"):
     """
     This module defines API routes for item retrieval using FastAPI.
 
@@ -61,20 +72,26 @@ async def get_item(item_id: int):
         GET /{item_id}: Retrieve an item by its ID. Returns the item if found, otherwise raises a 404 HTTPException.
     """
     try:
-        item = await db_manager.fetch_item(item_id)
+        config = table_config.get(table_name, {})
+        order_by = config.get("order_by", order_by)
+        where = config.get("where", "")
+        if where:
+            items = await db_manager.fetch_all_items_with_where(table_name, None, order_by, where)
+            item = next((i for i in items if i["id"] == item_id), None)
+        else:
+            item = await db_manager.fetch_item(table_name, item_id, None, order_by)
+
         if item is None:
             raise HTTPException(status_code=404, detail="Item not found")
+
         return item
     except Exception as e:
-        logging.error(f"DB error in get_item: {e}")
+        logging.error("DB error in get_item: %s", e)
         raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
-from fastapi import Request
-
-
 @router.post("/", response_model=Item, status_code=201)
-async def create_item(request: Request):
+async def create_item(table_name: str, request: Request):
     """
     This module defines API routes for item management using FastAPI.
 
@@ -88,14 +105,14 @@ async def create_item(request: Request):
     """
     try:
         data = await request.json()
-        return await db_manager.create_item(**data)
+        return await db_manager.create_item(table_name, **data)
     except Exception as e:
         logging.error("DB error in create_item: %s", e)
         raise HTTPException(status_code=500, detail={"error": str(e)}) from e
 
 
 @router.put("/{item_id}", response_model=Item)
-async def update_item(item_id: int, request: Request):
+async def update_item(table_name: str, item_id: int, request: Request):
     """
     This module defines the API routes for item operations.
 
@@ -104,7 +121,7 @@ async def update_item(item_id: int, request: Request):
     """
     try:
         data = await request.json()
-        updated = await db_manager.update_item(item_id, **data)
+        updated = await db_manager.update_item(table_name, item_id, **data)
         if updated is None:
             raise HTTPException(status_code=404, detail="Item not found")
         return updated
@@ -114,7 +131,7 @@ async def update_item(item_id: int, request: Request):
 
 
 @router.delete("/{item_id}", status_code=204)
-async def delete_item(item_id: int):
+async def delete_item(table_name: str, item_id: int):
     """
     This module defines API routes for item management.
 
@@ -123,7 +140,7 @@ async def delete_item(item_id: int):
         or 404 Not Found if the item does not exist.
     """
     try:
-        deleted = await db_manager.delete_item(item_id)
+        deleted = await db_manager.delete_item(table_name, item_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="Item not found")
         return None
